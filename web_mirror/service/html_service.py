@@ -7,7 +7,6 @@ import requests
 from bs4 import BeautifulSoup
 from bson import ObjectId
 from flask import send_file
-from playwright.async_api import async_playwright
 
 from common.db_util import web_info_clt
 from file_core.service.file_core import create_file, get_file_content
