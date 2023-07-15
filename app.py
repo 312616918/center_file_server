@@ -36,6 +36,16 @@ def mirror_web_submit_html():
     return resp_obj
 
 
+@app.route('/mirror_web/check_url_mirrored', methods=['POST'])
+def mirror_web_check_url_mirrored():
+    url = request.json["url"]
+    result = html_service.check_url_mirrored(url)
+    resp_obj = {
+        "mirrored": result
+    }
+    return resp_obj
+
+
 @app.route('/mirror_web/get/<web_id>')
 def mirror_web_get(web_id):
     req_url = request.url

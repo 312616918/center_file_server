@@ -58,7 +58,6 @@ def save_web_from_engine(url):
                 print(e)
                 print("can't download:", full_url)
 
-
             # save resource
             file_id = create_file(origin_url.split("/")[-1], resp.content)
             src_info_list.append({
@@ -141,6 +140,11 @@ def get_all_web_info():
         })
     return result_list
 
+
 def save_web_by_html(info):
     crawler = BaseCrawler(info)
     return crawler.run()
+
+
+def check_url_mirrored(url):
+    return web_info_clt.find_one({"url": url}) is not None
