@@ -22,6 +22,10 @@ class BaseCrawler():
         self.info = info
 
     def run(self):
+        if self.info.get("skip_same_url", False):
+            if web_info_clt.find_one({"url": self.info["url"]}):
+                return
+
         if not "html" in self.info:
             self.set_info()
         return self.save_resource()

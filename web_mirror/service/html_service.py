@@ -111,7 +111,8 @@ def get_html_by_web_id(web_id, res_url_prefix):
             new_url = res_url_prefix + file_id
             if re.search(r"\.[a-zA-Z0-9]+$", origin_url):
                 new_url += origin_url[origin_url.rfind("."):]
-            label.attrs[attr_name] = new_url
+            # 使用绝对路径
+            label.attrs[attr_name] = urljoin(res_url_prefix, new_url)
     for tag in bs.find_all("script"):
         tag.decompose()
     for tag in bs.find_all("img"):
