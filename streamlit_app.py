@@ -1,3 +1,6 @@
+import urllib
+from urllib.parse import urljoin
+
 import streamlit as st
 from pandas import DataFrame
 
@@ -9,13 +12,16 @@ st.write(x, "squared is", x * x)
 info_list = html_service.get_all_web_info()
 info_data = []
 
+mirror_base_url = st.text_input("mirror_base_url", "http://localhost:5000")
+
 
 def to_a_tag(text, url):
     return '<a href="{}" target="_blank">{}</a>'.format(url, text)
 
 
 for info in info_list:
-    mirror_url = "http://localhost:5000/mirror_web/get/" + info["id"]
+    mirror_url = urljoin(mirror_base_url, "/mirror_web/get/" + info["id"])
+    # mirror_url = "http://localhost:5000/mirror_web/get/" + info["id"]
     info_data.append({
         "title": info["title"],
         "url": to_a_tag(info["url"], info["url"]),

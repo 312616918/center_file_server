@@ -1,4 +1,5 @@
 import json
+from urllib.parse import urljoin
 
 from flask import Flask, request, render_template_string
 from flask_cors import CORS
@@ -37,7 +38,10 @@ def mirror_web_submit_html():
 
 @app.route('/mirror_web/get/<web_id>')
 def mirror_web_get(web_id):
-    html = html_service.get_html_by_web_id(web_id, "/mirror_web/get_src/")
+    req_url = request.url
+    base_url = req_url.removesuffix("/mirror_web/get/" + web_id)
+    html = html_service.get_html_by_web_id(web_id, urljoin(base_url, "/mirror_web/get_src/"))
+    # html = html_service.get_html_by_web_id(web_id, "/mirror_web/get_src/")
     return render_template_string(html)
 
 
