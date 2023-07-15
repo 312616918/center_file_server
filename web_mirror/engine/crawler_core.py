@@ -1,6 +1,7 @@
 from datetime import datetime
 from urllib.parse import urljoin
 
+import cacheout
 import requests
 from bs4 import BeautifulSoup
 
@@ -15,6 +16,21 @@ RES_ATTR_DICT = {
 base_header = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/112.0"
 }
+
+
+@cacheout.memoize(ttl=60 * 10, maxsize=1000)
+def download_resource(url):
+    try:
+        resp = requests.get(url=url, headers=base_header)
+        if resp.status_code != 200:
+            print("can't download:", url)
+            return None
+        print("downloaded:", url)
+        return resp.content
+    except Exception as e:
+        print(e)
+        print("can't download:", url)
+        return None
 
 
 class BaseCrawler():
@@ -51,19 +67,12 @@ class BaseCrawler():
                     full_url = urljoin(self.info["url"], origin_url)
 
                 # download resource
-                try:
-                    resp = requests.get(url=full_url, headers=base_header)
-                    if resp.status_code != 200:
-                        print("can't download:", full_url)
-                        continue
-                    print("downloaded:", origin_url)
-                except Exception as e:
-                    print(e)
-                    print("can't download:", full_url)
+                res_content = download_resource(full_url)
+                if not res_content:
                     continue
 
                 # save resource
-                file_id = create_file(origin_url.split("/")[-1], resp.content)
+                file_id = create_file(origin_url.split("/")[-1], res_content)
                 src_info_list.append({
                     "name": name,
                     "attr_name": attr_name,
