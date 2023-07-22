@@ -11,3 +11,4 @@ file_info_clt = db["file_info"]
 gfs = GridFS(db)
 
 web_info_clt = db["web_info"]
+

@@ -36,10 +36,9 @@ def mirror_web_submit_html():
     return resp_obj
 
 
-@app.route('/mirror_web/check_url_mirrored', methods=['POST'])
+@app.route('/mirror_web/check_mirrored', methods=['POST'])
 def mirror_web_check_url_mirrored():
-    url = request.json["url"]
-    result = html_service.check_url_mirrored(url)
+    result = html_service.check_mirrored(request.json)
     resp_obj = {
         "mirrored": result
     }
@@ -54,10 +53,9 @@ def mirror_web_get(web_id):
     # html = html_service.get_html_by_web_id(web_id, "/mirror_web/get_src/")
     return render_template_string(html)
 
-
-@app.route('/mirror_web/get_src/<file_url>')
+@app.route('/mirror_web/get_src/<path:file_url>')
 def mirror_web_get_src(file_url):
-    return html_service.get_src_content("/" + file_url)
+    return html_service.get_src_content(file_url)
 
 
 @app.route('/mirror_web/list')

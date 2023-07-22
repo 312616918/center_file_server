@@ -1,7 +1,7 @@
 import io
 import re
 from datetime import datetime
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 import requests
 from bs4 import BeautifulSoup
@@ -10,18 +10,15 @@ from flask import send_file
 
 from common.db_util import web_info_clt
 from file_core.service.file_core import create_file, get_file_content
-from web_mirror.engine.crawler_core import BaseCrawler
+from web_mirror.engine.crawler_core import BaseCrawler, get_or_replace_label_urls
 from web_mirror.engine.web_engine import WebEngine
-
-RES_ATTR_DICT = {
-    "img": "src",
-    "link": "href",
-    "script": "src",
-}
 
 base_header = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/112.0"
 }
+
+
+
 
 
 def save_web_from_engine(url):
@@ -33,40 +30,36 @@ def save_web_from_engine(url):
     bs = BeautifulSoup(html, 'html.parser')
     src_info_list = []
 
-    for name in RES_ATTR_DICT:
-        attr_name = RES_ATTR_DICT[name]
+    for name in ["img", "link", "script"]:
         for label in bs.find_all(name):
-            if attr_name not in label.attrs:
-                continue
-
-            # gen_url
-            origin_url = label.attrs[attr_name]
-            print(origin_url)
-            if origin_url.startswith("http"):
-                full_url = origin_url
-            else:
-                full_url = urljoin(url, origin_url)
-
-            # download resource
-            try:
-                resp = requests.get(url=full_url, headers=base_header)
-                if resp.status_code != 200:
-                    print("can't download:", full_url)
+            for origin_url in get_or_replace_label_urls(label, name, None):
+                if not origin_url or not origin_url.strip():
                     continue
-                print("downloaded:", origin_url)
-            except Exception as e:
-                print(e)
-                print("can't download:", full_url)
+                print(origin_url)
+                if origin_url.startswith("http"):
+                    full_url = origin_url
+                else:
+                    full_url = urljoin(url, origin_url)
 
-            # save resource
-            file_id = create_file(origin_url.split("/")[-1], resp.content)
-            src_info_list.append({
-                "name": name,
-                "attr_name": attr_name,
-                "origin_url": origin_url,
-                "full_url": full_url,
-                "file_id": file_id
-            })
+                # download resource
+                try:
+                    resp = requests.get(url=full_url, headers=base_header)
+                    if resp.status_code != 200:
+                        print("can't download:", full_url)
+                        continue
+                    print("downloaded:", origin_url)
+                except Exception as e:
+                    print(e)
+                    print("can't download:", full_url)
+
+                # save resource
+                file_id = create_file(origin_url.split("/")[-1], resp.content)
+                src_info_list.append({
+                    "name": name,
+                    "origin_url": origin_url,
+                    "full_url": full_url,
+                    "file_id": file_id
+                })
 
     title = page_info["title"]
 
@@ -96,33 +89,34 @@ def get_html_by_web_id(web_id, res_url_prefix):
     for item in web_info["src_info"]:
         url_file_id_dict[item["origin_url"]] = str(item["file_id"])
 
-    for name in RES_ATTR_DICT:
-        attr_name = RES_ATTR_DICT[name]
-        for label in bs.find_all(name):
-            if attr_name not in label.attrs:
-                continue
+    url_dict = {}
+    for origin_url, file_id in url_file_id_dict.items():
+        new_url = urljoin(res_url_prefix, file_id) + "/"
+        origin_url_path = urlsplit(origin_url).path.removeprefix("/")
+        new_url = urljoin(new_url, origin_url_path)
+        url_dict[origin_url] = new_url
 
-            # replace_url
-            origin_url = label.attrs[attr_name]
-            file_id = url_file_id_dict.get(origin_url, None)
-            if not file_id:
-                continue
-            new_url = urljoin(res_url_prefix, file_id)
-            if re.search(r"\.[a-zA-Z0-9?]+$", origin_url):
-                new_url += origin_url[origin_url.rfind("."):]
-            label.attrs[attr_name] = new_url
+    for name in ["img", "link", "script"]:
+        for label in bs.find_all(name):
+            get_or_replace_label_urls(label, name, url_dict)
     for tag in bs.find_all("script"):
         tag.decompose()
     for tag in bs.find_all("img"):
         del tag["onerror"]
+    # delete <link as="script" href="http
+    for tag in bs.find_all("link"):
+        if tag.attrs.get("as", None) == "script":
+            tag.decompose()
+
     return bs.prettify()
 
 
 def get_src_content(src_url):
-    re_ids = re.findall(r"/([0-9a-fA-F]{24})(\.[a-zA-Z0-9]+)?$", src_url)
-    if not re_ids:
-        return None
-    file_id = re_ids[0][0]
+    # re_ids = re.findall(r"/([0-9a-fA-F]{24})(\.[a-zA-Z0-9]+)?$", src_url)
+    # if not re_ids:
+    #     return None
+    # file_id = re_ids[0][0]
+    file_id = src_url.split("/")[0]
     content = get_file_content(file_id)
     return send_file(io.BytesIO(content), download_name=src_url.split("/")[-1], as_attachment=True)
     # return get_file_content(file_id)
@@ -146,5 +140,5 @@ def save_web_by_html(info):
     return crawler.run()
 
 
-def check_url_mirrored(url):
-    return web_info_clt.find_one({"url": url}) is not None
+def check_mirrored(info):
+    return web_info_clt.find_one(info) is not None

@@ -8,15 +8,66 @@ from bs4 import BeautifulSoup
 from common.db_util import web_info_clt
 from file_core.service.file_core import create_file
 
-RES_ATTR_DICT = {
-    "img": "src",
-    "link": "href",
-    "script": "src",
-}
+
 base_header = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/112.0"
 }
 
+def get_or_replace_label_urls(label, label_name, url_dict):
+    url_list = []
+    if label_name == "img":
+        if "src" in label.attrs:
+            url = label.attrs["src"]
+            url_list.append(url)
+            if url_dict and url in url_dict:
+                label.attrs["src"] = url_dict[url]
+        if "data-src" in label.attrs:
+            url = label.attrs["data-src"]
+            url_list.append(url)
+            if url_dict and url in url_dict:
+                label.attrs["data-src"] = url_dict[url]
+        if "srcset" in label.attrs:
+            src_set = label.attrs["srcset"]
+            replace_src_set = []
+            for src in src_set.split(","):
+                sp = src.split(" ")
+                url = sp[0].strip()
+                url_list.append(url)
+                if url_dict and url in url_dict:
+                    replace_src_set.append(" ".join([url_dict[url], sp[1]]))
+                else:
+                    replace_src_set.append(src)
+            if url_dict:
+                label.attrs["srcset"] = ",".join(replace_src_set)
+        if "data-srcset" in label.attrs:
+            src_set = label.attrs["data-srcset"]
+            replace_src_set = []
+            for src in src_set.split(","):
+                sp = src.split(" ")
+                url = sp[0].strip()
+                url_list.append(url)
+                if url_dict and url in url_dict:
+                    replace_src_set.append(" ".join([url_dict[url], sp[1]]))
+                else:
+                    replace_src_set.append(src)
+            if url_dict:
+                label.attrs["data-srcset"] = ",".join(replace_src_set)
+        return url_list
+    if label_name == "link":
+        if "href" in label.attrs:
+            url = label.attrs["href"]
+            url_list.append(url)
+            if url_dict and url in url_dict:
+                label.attrs["href"] = url_dict[url]
+        return url_list
+    if label_name == "script":
+        if "src" in label.attrs:
+            url = label.attrs["src"]
+            url_list.append(url)
+            if url_dict and url in url_dict:
+                label.attrs["src"] = url_dict[url]
+        return url_list
+    return url_list
 
 @cacheout.memoize(ttl=60 * 10, maxsize=1000)
 def download_resource(url):
@@ -53,33 +104,30 @@ class BaseCrawler():
     def save_resource(self):
         bs = BeautifulSoup(self.info["html"], 'html.parser')
         src_info_list = []
-        for name in RES_ATTR_DICT:
-            attr_name = RES_ATTR_DICT[name]
+        for name in ["img", "link", "script"]:
             for label in bs.find_all(name):
-                if attr_name not in label.attrs:
-                    continue
-                # gen_url
-                origin_url = label.attrs[attr_name]
-                print(origin_url)
-                if origin_url.startswith("http"):
-                    full_url = origin_url
-                else:
-                    full_url = urljoin(self.info["url"], origin_url)
+                for origin_url in get_or_replace_label_urls(label, name, None):
+                    if not origin_url or not origin_url.strip():
+                        continue
+                    print(origin_url)
+                    if origin_url.startswith("http"):
+                        full_url = origin_url
+                    else:
+                        full_url = urljoin(self.info["url"], origin_url)
 
-                # download resource
-                res_content = download_resource(full_url)
-                if not res_content:
-                    continue
+                    # download resource
+                    res_content = download_resource(full_url)
+                    if not res_content:
+                        continue
 
-                # save resource
-                file_id = create_file(origin_url.split("/")[-1], res_content)
-                src_info_list.append({
-                    "name": name,
-                    "attr_name": attr_name,
-                    "origin_url": origin_url,
-                    "full_url": full_url,
-                    "file_id": file_id
-                })
+                    # save resource
+                    file_id = create_file(origin_url.split("/")[-1], res_content)
+                    src_info_list.append({
+                        "name": name,
+                        "origin_url": origin_url,
+                        "full_url": full_url,
+                        "file_id": file_id
+                    })
 
         title = bs.title.text
 
